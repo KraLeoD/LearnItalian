@@ -1,0 +1,50 @@
+{
+  // GitGraph dev environment: Expo (Node/TypeScript) + OpenAI Codex CLI.
+  // Sign in to Codex with your ChatGPT Plus account — no API key required.
+  "name": "GitGraph (Expo + Codex)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  // Run as the non-root user that ships with the base image.
+  "remoteUser": "node",
+
+  // Persist Codex credentials across container rebuilds.
+  // Codex stores its ChatGPT login in ~/.codex/auth.json. Mounting a named
+  // volume here means you log in once and stay logged in after rebuilds.
+  "mounts": [
+    "source=gitgraph-codex-home,target=/home/node/.codex,type=volume"
+  ],
+
+  // Ports we want reachable from the host.
+  //   1455  -> Codex "Sign in with ChatGPT" OAuth callback (needed for login)
+  //   8081  -> Expo / Metro dev server (also serves Expo Web in modern SDKs)
+  //   19006 -> Expo Web (legacy webpack dev server)
+  //   19000 -> Expo Go dev server / manifest
+  //   19001 -> Expo Go dev tools
+  "forwardPorts": [1455, 8081, 19006, 19000, 19001],
+  "portsAttributes": {
+    "1455": { "label": "Codex login (ChatGPT OAuth)", "onAutoForward": "silent" },
+    "8081": { "label": "Expo / Metro", "onAutoForward": "notify" },
+    "19006": { "label": "Expo Web", "onAutoForward": "openBrowser" },
+    "19000": { "label": "Expo Go", "onAutoForward": "silent" },
+    "19001": { "label": "Expo Go tools", "onAutoForward": "silent" }
+  },
+
+  // Fix volume ownership, confirm the toolchain, and install deps if the app
+  // already exists. See .devcontainer/post-create.sh.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "expo.vscode-expo-tools",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
