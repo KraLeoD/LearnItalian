@@ -2,6 +2,12 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
+# better-sqlite3 compiles from source when a prebuilt binary is unavailable for
+# the exact Node.js release. Keep the native build toolchain in this stage only.
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
