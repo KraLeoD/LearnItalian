@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: language-app
+  annotations:
+    # Example only; adapt to your ingress controller and TLS issuer.
+    nginx.ingress.kubernetes.io/proxy-body-size: 32k
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [italienisch.example.com]
+      secretName: language-app-tls
+  rules:
+    - host: italienisch.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: language-app
+                port:
+                  number: 80

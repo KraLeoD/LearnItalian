@@ -1,0 +1,20 @@
+{
+  "name": "meine-saetze",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @meine-saetze/api\" \"npm run dev -w @meine-saetze/web\"",
+    "dev:api": "npm run dev -w @meine-saetze/api",
+    "dev:web": "npm run dev -w @meine-saetze/web",
+    "build": "npm run build -w @meine-saetze/web && npm run build -w @meine-saetze/api",
+    "test": "npm run test -w @meine-saetze/api",
+    "typecheck": "npm run typecheck -w @meine-saetze/api && npm run typecheck -w @meine-saetze/web",
+    "lint": "npm run lint -w @meine-saetze/api && npm run lint -w @meine-saetze/web",
+    "start": "npm run start -w @meine-saetze/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": { "node": ">=20" }
+}

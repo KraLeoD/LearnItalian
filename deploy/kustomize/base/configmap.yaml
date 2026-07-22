@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: language-app-config
+data:
+  PROVIDER_MODE: azure
+  AZURE_TRANSLATOR_ENDPOINT: https://api.cognitive.microsofttranslator.com
+  AZURE_TRANSLATOR_REGION: westeurope
+  AZURE_SPEECH_REGION: westeurope
+  AZURE_SPEECH_VOICE: it-IT-ElsaNeural
+  TRANSLATION_MONTHLY_CHAR_LIMIT: "1500000"
+  SPEECH_MONTHLY_CHAR_LIMIT: "400000"
+  MAX_TEXT_LENGTH: "2000"
+  GENERATION_REQUESTS_PER_MINUTE: "10"
+  PROVIDER_TIMEOUT_MS: "10000"

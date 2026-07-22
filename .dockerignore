@@ -1,0 +1,12 @@
+.git
+.github
+.expo
+node_modules
+**/node_modules
+coverage
+data
+.env
+.env.*
+!.env.example
+*.sqlite*
+README.md

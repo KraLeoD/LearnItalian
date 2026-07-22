@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Meine Sätze",
+    "slug": "meine-saetze",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}
