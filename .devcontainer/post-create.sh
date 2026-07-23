@@ -7,6 +7,9 @@ echo "==> Ensuring ~/.codex is owned by the 'node' user..."
 sudo chown -R node:node "$HOME/.codex" 2>/dev/null || true
 chmod 700 "$HOME/.codex" 2>/dev/null || true
 
+echo "==> Installing the standalone OpenAI Codex CLI..."
+curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+
 echo "==> Toolchain versions:"
 echo "    node    $(node --version)"
 echo "    npm     $(npm --version)"

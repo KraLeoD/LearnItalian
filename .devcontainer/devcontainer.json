@@ -31,8 +31,8 @@
     "19001": { "label": "Expo Go tools", "onAutoForward": "silent" }
   },
 
-  // Fix volume ownership, confirm the toolchain, and install deps if the app
-  // already exists. See .devcontainer/post-create.sh.
+  // Fix volume ownership, install the standalone Codex CLI, confirm the
+  // toolchain, and install app dependencies. See .devcontainer/post-create.sh.
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
   "customizations": {
