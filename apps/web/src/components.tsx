@@ -100,6 +100,7 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [continuePlayback, setContinuePlayback] = useState(false);
+  const [rate, setRate] = useState(1);
   const playlistKey = items.map((item) => `${item.id}:${item.url}`).join('|');
   const current = items[currentIndex];
 
@@ -107,9 +108,11 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
     setCurrentIndex(0);
     setPlaying(false);
     setContinuePlayback(false);
+    setRate(1);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+      audioRef.current.playbackRate = 1;
     }
   }, [playlistKey]);
 
@@ -117,8 +120,9 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
     if (!continuePlayback || !audioRef.current) return;
     setContinuePlayback(false);
     audioRef.current.currentTime = 0;
+    audioRef.current.playbackRate = rate;
     void audioRef.current.play().catch(() => setPlaying(false));
-  }, [continuePlayback, currentIndex]);
+  }, [continuePlayback, currentIndex, rate]);
 
   if (Platform.OS !== 'web') {
     return <Text variant="bodyMedium">Die Wiedergabeliste ist in dieser MVP-Version für das Web optimiert.</Text>;
@@ -131,6 +135,11 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
     if (!audio) return;
     if (audio.paused) void audio.play().catch(() => setPlaying(false));
     else audio.pause();
+  };
+  const toggleRate = () => {
+    const next = rate === 1 ? 0.75 : 1;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
   };
   const stopPlayback = () => {
     const audio = audioRef.current;
@@ -159,6 +168,7 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
         preload="metadata"
         src={absoluteAudioUrl(current.url)}
         style={{ display: 'none' }}
+        onLoadedMetadata={(event: React.SyntheticEvent<HTMLAudioElement>) => { event.currentTarget.playbackRate = rate; }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={playNext}
@@ -174,6 +184,9 @@ export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
       <View style={styles.playlistActions}>
         <Button mode="contained" icon={playing ? 'pause' : 'play'} onPress={togglePlayback}>
           {playing ? 'Pause' : currentIndex > 0 ? 'Weiter' : 'Alle abspielen'}
+        </Button>
+        <Button compact mode={rate < 1 ? 'contained' : 'text'} icon="speedometer-slow" onPress={toggleRate} accessibilityLabel="Wiedergabegeschwindigkeit der Wiedergabeliste umschalten">
+          {rate < 1 ? '1× Normal' : '0,75× Langsam'}
         </Button>
         {(playing || currentIndex > 0) ? <IconButton icon="stop" onPress={stopPlayback} accessibilityLabel="Wiedergabeliste stoppen" /> : null}
       </View>
@@ -248,7 +261,7 @@ const styles = StyleSheet.create({
   audioProgress: { flex: 1, minWidth: 100, gap: 1 },
   playlist: { borderRadius: 18, padding: 16, gap: 14 },
   playlistStatus: { gap: 3 },
-  playlistActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  playlistActions: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   audioError: { padding: 12, borderRadius: 12, gap: 4 },
   cardActions: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
