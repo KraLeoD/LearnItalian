@@ -64,6 +64,8 @@ AZURE_SPEECH_VOICE=it-IT-ElsaNeural
 
 `AZURE_SPEECH_ENDPOINT` kann alternativ einen vollständigen Speech-Endpunkt enthalten. Schlüssel werden nur beim Serverstart gelesen, nicht geloggt, nicht über die API ausgegeben und nie in Expo gebündelt. Das Ändern von Schlüsseln in der unauthentifizierten Oberfläche wird absichtlich nicht unterstützt.
 
+`AZURE_SPEECH_VOICE` ist die Standardstimme. In der Oberfläche kann pro Erstellung zwischen den italienischen Standard-Neural-Stimmen gewählt werden; HD/Dragon-Stimmen werden bewusst nicht angeboten. Im Modus „Mehrere Sätze“ steht jeder deutsche Satz in einer eigenen Zeile. Die App speichert und zeigt die Übersetzungen einzeln, erzeugt aber eine gemeinsame Audiodatei in derselben Reihenfolge.
+
 Provider-Aufrufe haben Timeout und höchstens einen Retry bei Netzwerk-/5xx-Fehlern. Fehlerhafte Requests, Authentifizierungsfehler und 429 werden nicht wiederholt. SSML wird XML-sicher escaped; Azure Speech liefert MP3.
 
 ## Kontingentschutz
@@ -176,4 +178,4 @@ Nach erfolgreichem Healthcheck den alten Azure-Schlüssel widerrufen.
 
 Es gibt absichtlich keine Anmeldung, Benutzer, Sessions oder Berechtigungstrennung. Jeder mit Netzwerkzugriff kann alle Sätze lesen/ändern und Kontingent verbrauchen. Die App gehört in ein vertrauenswürdiges Netz oder hinter TLS und einen authentifizierenden Ingress/Proxy (z. B. Authentik). Daten sind nicht anwendungsseitig verschlüsselt; nutze bei Bedarf verschlüsselten Storage und sichere Backups.
 
-Weitere Grenzen: nur Deutsch → Italienisch, eine konfigurierte Stimme, höchstens 500 Suchresultate, keine Mehrbenutzerfähigkeit/horizontale Skalierung. Verwaiste Cache-Audios werden nach dem letzten Satz nicht automatisch bereinigt; für den kleinen Datensatz ist das einfacher und sicherer.
+Weitere Grenzen: nur Deutsch → Italienisch, höchstens 500 Suchresultate, keine Mehrbenutzerfähigkeit/horizontale Skalierung. Verwaiste Cache-Audios werden nach dem letzten Satz nicht automatisch bereinigt; für den kleinen Datensatz ist das einfacher und sicherer.

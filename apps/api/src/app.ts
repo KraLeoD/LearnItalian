@@ -11,6 +11,7 @@ import { AppError, publicError } from './errors.js';
 import { createProviders } from './providers.js';
 import { currentMonth, LearningService } from './service.js';
 import type { SpeechProvider, TranslationProvider } from './types.js';
+import { ITALIAN_VOICES } from './voices.js';
 
 interface BuildOptions {
   config: AppConfig;
@@ -25,7 +26,17 @@ const generateBody = (max: number) => z.object({
   sourceText: z.string().trim().min(1).max(max),
   targetLanguage: z.literal('it').default('it'),
   categoryId: z.string().uuid().nullable().default(null),
+  voice: z.string().max(100).optional(),
 }).strict();
+const generateBatchBody = (max: number) => z.object({
+  sourceTexts: z.array(z.string().trim().min(1).max(max)).min(2).max(30),
+  targetLanguage: z.literal('it').default('it'),
+  categoryId: z.string().uuid().nullable().default(null),
+  voice: z.string().max(100).optional(),
+}).strict().refine(
+  ({ sourceTexts }) => sourceTexts.reduce((total, text) => total + text.length, 0) <= max,
+  { message: 'Die Sätze sind zusammen zu lang.', path: ['sourceTexts'] },
+);
 const categoryAssignment = z.object({ categoryId: z.string().uuid().nullable() }).strict();
 const idParams = z.object({ id: z.string().uuid() });
 const audioParams = z.object({ cacheKey: z.string().regex(/^[a-f0-9]{64}$/) });
@@ -55,7 +66,10 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
 
   const requestsByAddress = new Map<string, number[]>();
   app.addHook('onRequest', async (request) => {
-    if (request.method !== 'POST' || !request.url.match(/^\/api\/entries(?:\/[^/]+\/audio)?$/)) return;
+    const isGenerationRequest = request.method === 'POST' && (
+      request.url === '/api/entries' || request.url === '/api/entry-batches' || /^\/api\/entries\/[^/]+\/audio$/.test(request.url)
+    );
+    if (!isGenerationRequest) return;
     const now = Date.now();
     const recent = (requestsByAddress.get(request.ip) ?? []).filter((time) => time > now - 60_000);
     if (recent.length >= options.config.GENERATION_REQUESTS_PER_MINUTE) throw new AppError('QUOTA_EXCEEDED', 'Bitte warte kurz, bevor du weitere Inhalte erstellst.', 429);
@@ -104,8 +118,13 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   });
   app.post('/api/entries', async (request, reply) => {
     const input = generateBody(options.config.MAX_TEXT_LENGTH).parse(request.body);
-    const entry = await service.generate(input.sourceText, input.categoryId);
+    const entry = await service.generate(input.sourceText, input.categoryId, input.voice);
     return reply.code(201).send({ entry });
+  });
+  app.post('/api/entry-batches', async (request, reply) => {
+    const input = generateBatchBody(options.config.MAX_TEXT_LENGTH).parse(request.body);
+    const entries = await service.generateBatch(input.sourceTexts, input.categoryId, input.voice);
+    return reply.code(201).send({ entries });
   });
   app.patch('/api/entries/:id/category', async (request) => {
     const { id } = idParams.parse(request.params);
@@ -120,7 +139,7 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
   });
   app.delete('/api/entries/:id', async (request, reply) => {
     const { id } = idParams.parse(request.params);
-    if (!db.deleteEntry(id)) throw new AppError('NOT_FOUND', 'Der Eintrag wurde nicht gefunden.', 404);
+    if (!service.deleteEntry(id)) throw new AppError('NOT_FOUND', 'Der Eintrag wurde nicht gefunden.', 404);
     return reply.code(204).send();
   });
   app.get('/api/audio/:cacheKey', async (request, reply) => {
@@ -130,7 +149,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
     reply.header('Content-Type', 'audio/mpeg').header('Cache-Control', 'private, max-age=31536000, immutable');
     return reply.send(createReadStream(path));
   });
-  app.get('/api/info', async () => {
+  app.get('/api/info', async (_request, reply) => {
+    reply.header('Cache-Control', 'no-store');
     const month = currentMonth();
     const usage = db.getUsage(month);
     return {
@@ -139,6 +159,8 @@ export async function buildApp(options: BuildOptions): Promise<FastifyInstance> 
         translation: { used: usage.translation ?? 0, limit: options.config.TRANSLATION_MONTHLY_CHAR_LIMIT },
         speech: { used: usage.speech ?? 0, limit: options.config.SPEECH_MONTHLY_CHAR_LIMIT },
       },
+      defaultVoice: options.config.AZURE_SPEECH_VOICE,
+      voices: ITALIAN_VOICES,
     };
   });
 

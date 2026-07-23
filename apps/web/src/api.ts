@@ -34,9 +34,10 @@ export const api = {
     if (categoryId) query.set('categoryId', categoryId);
     return request<{ entries: Entry[] }>(`/api/entries${query.size ? `?${query}` : ''}`);
   },
-  generate: (sourceText: string, categoryId: string | null) => request<{ entry: Entry }>('/api/entries', { method: 'POST', body: JSON.stringify({ sourceText, targetLanguage: 'it', categoryId }) }),
+  generate: (sourceText: string, categoryId: string | null, voice: string) => request<{ entry: Entry }>('/api/entries', { method: 'POST', body: JSON.stringify({ sourceText, targetLanguage: 'it', categoryId, voice }) }),
+  generateBatch: (sourceTexts: string[], categoryId: string | null, voice: string) => request<{ entries: Entry[] }>('/api/entry-batches', { method: 'POST', body: JSON.stringify({ sourceTexts, targetLanguage: 'it', categoryId, voice }) }),
   assignCategory: (id: string, categoryId: string | null) => request<{ entry: Entry }>(`/api/entries/${id}/category`, { method: 'PATCH', body: JSON.stringify({ categoryId }) }),
   retryAudio: (id: string) => request<{ entry: Entry }>(`/api/entries/${id}/audio`, { method: 'POST' }),
   deleteEntry: (id: string) => request<void>(`/api/entries/${id}`, { method: 'DELETE' }),
-  info: () => request<Info>('/api/info'),
+  info: () => request<Info>(`/api/info?refresh=${Date.now()}`, { cache: 'no-store' }),
 };
