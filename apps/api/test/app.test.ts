@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -152,6 +152,49 @@ describe('persistence, cache, and safeguards', () => {
     await service.retryAudio(remaining.id);
     expect(speech.calls).toBe(2);
     expect(speech.lastRequest).toMatchObject({ text: 'IT Zweiter Satz.', voice: 'it-IT-DiegoNeural' });
+    db.close();
+  });
+
+  it('deletes an entry and its unreferenced audio through the HTTP endpoint', async () => {
+    const config = testConfig();
+    const db = new AppDatabase(':memory:');
+    const app = await buildApp({ config, db, translator: new Translator('Da eliminare'), speech: new Speech() });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/entries',
+      payload: { sourceText: 'Bitte löschen', targetLanguage: 'it', categoryId: null },
+    });
+    const entry = created.json().entry as { id: string; audioUrl: string };
+    const cacheKey = entry.audioUrl.split('/').pop()!;
+    const audioPath = join(config.DATA_DIR, 'audio', `${cacheKey}.mp3`);
+    expect(existsSync(audioPath)).toBe(true);
+
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/entries/${entry.id}` });
+
+    expect(deleted.statusCode).toBe(204);
+    expect(db.getEntry(entry.id)).toBeNull();
+    expect(db.getAudioCache(cacheKey)).toBeNull();
+    expect(existsSync(audioPath)).toBe(false);
+    expect((await app.inject({ method: 'GET', url: `/api/audio/${cacheKey}` })).statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('keeps shared audio until its final entry is deleted', async () => {
+    const config = testConfig();
+    const db = new AppDatabase(':memory:');
+    const service = new LearningService(db, config, new Translator('Condiviso'), new Speech());
+    const first = await service.generate('Erster Satz', null);
+    const second = await service.generate('Zweiter Satz', null);
+    const cacheKey = first.audioUrl!.split('/').pop()!;
+    const audioPath = service.audioPath(cacheKey)!;
+
+    expect(service.deleteEntry(first.id)).toBe(true);
+    expect(existsSync(audioPath)).toBe(true);
+    expect(db.getAudioCache(cacheKey)).not.toBeNull();
+
+    expect(service.deleteEntry(second.id)).toBe(true);
+    expect(existsSync(audioPath)).toBe(false);
+    expect(db.getAudioCache(cacheKey)).toBeNull();
     db.close();
   });
 

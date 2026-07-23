@@ -93,7 +93,37 @@ export class AppDatabase {
     return this.db.prepare('UPDATE entries SET category_id=?, updated_at=? WHERE id=?').run(categoryId, now, id).changes > 0;
   }
 
-  deleteEntry(id: string): boolean { return this.db.prepare('DELETE FROM entries WHERE id=?').run(id).changes > 0; }
+  deleteEntry(id: string, removeAudioFile: (filename: string) => void): boolean {
+    return this.db.transaction(() => {
+      const entry = this.db.prepare(
+        'SELECT batch_id batchId, audio_cache_key audioCacheKey FROM entries WHERE id=?',
+      ).get(id) as { batchId: string | null; audioCacheKey: string | null } | undefined;
+      if (!entry) return false;
+
+      this.db.prepare('DELETE FROM entries WHERE id=?').run(id);
+      if (entry.batchId) {
+        this.db.prepare(
+          "UPDATE entries SET audio_status='failed', audio_cache_key=NULL, updated_at=? WHERE batch_id=?",
+        ).run(new Date().toISOString(), entry.batchId);
+      }
+
+      if (entry.audioCacheKey) {
+        const orphanedAudio = this.db.prepare(`
+          SELECT ac.filename
+          FROM audio_cache ac
+          WHERE ac.cache_key=?
+            AND NOT EXISTS (
+              SELECT 1 FROM entries e WHERE e.audio_cache_key=ac.cache_key
+            )
+        `).get(entry.audioCacheKey) as { filename: string } | undefined;
+        if (orphanedAudio) {
+          removeAudioFile(orphanedAudio.filename);
+          this.db.prepare('DELETE FROM audio_cache WHERE cache_key=?').run(entry.audioCacheKey);
+        }
+      }
+      return true;
+    })();
+  }
 
   listEntriesByBatch(batchId: string): Entry[] {
     return (this.db.prepare(`${entrySelect} WHERE e.batch_id=? ORDER BY e.batch_index ASC`).all(batchId) as Row[]).map((row) => this.mapEntry(row)!);

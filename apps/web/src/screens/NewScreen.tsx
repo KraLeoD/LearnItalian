@@ -60,7 +60,7 @@ export function NewScreen({ categories, voices, voice, onVoiceChange, onChanged 
     try {
       await api.deleteEntry(current.id);
       setEntries((all) => all.filter((item) => item.id !== current.id).map((item) => current.batchId && item.batchId === current.batchId ? { ...item, audioStatus: 'failed', audioUrl: null } : item));
-      setMessage('Eintrag gelöscht. Gemeinsames Audio kann bei Bedarf neu erstellt werden.'); onChanged();
+      setMessage(current.batchId ? 'Eintrag gelöscht. Das gemeinsame Audio kann bei Bedarf neu erstellt werden.' : 'Eintrag und nicht mehr benötigtes Audio gelöscht.'); onChanged();
     }
     catch (error) { setMessage(error instanceof ApiError ? error.message : 'Eintrag konnte nicht gelöscht werden.'); }
     finally { setBusyEntry(false); }

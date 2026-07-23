@@ -105,7 +105,7 @@ async function confirmDelete(message: string): Promise<boolean> {
 export function EntryCard({ entry, categories, busy, hideAudio = false, onRetryAudio, onDelete, onAssign }: {
   entry: Entry; categories: Category[]; busy?: boolean;
   hideAudio?: boolean;
-  onRetryAudio: (entry: Entry) => void; onDelete: (entry: Entry) => void; onAssign: (entry: Entry, categoryId: string | null) => void;
+  onRetryAudio: (entry: Entry) => void; onDelete: (entry: Entry) => Promise<void>; onAssign: (entry: Entry, categoryId: string | null) => void;
 }) {
   const theme = useTheme();
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -138,7 +138,7 @@ export function EntryCard({ entry, categories, busy, hideAudio = false, onRetryA
             <Menu.Item title="Ohne Kategorie" onPress={() => { onAssign(entry, null); setCategoryOpen(false); }} />
             {categories.map((category) => <Menu.Item key={category.id} title={category.name} onPress={() => { onAssign(entry, category.id); setCategoryOpen(false); }} />)}
           </Menu>
-          <IconButton icon="delete-outline" accessibilityLabel="Eintrag löschen" disabled={Boolean(busy)} onPress={async () => { if (await confirmDelete('Dieser Satz wird dauerhaft gelöscht.')) onDelete(entry); }} />
+          <IconButton icon="delete-outline" accessibilityLabel="Eintrag löschen" disabled={Boolean(busy)} onPress={async () => { if (await confirmDelete('Dieser Satz und sein nicht mehr benötigtes Audio werden dauerhaft gelöscht.')) await onDelete(entry); }} />
         </View>
       </Card.Content>
     </Card>
