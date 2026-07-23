@@ -4,6 +4,12 @@ import { Button, Card, Chip, IconButton, Menu, Text, useTheme } from 'react-nati
 import { absoluteAudioUrl } from './api';
 import type { Category, Entry, VoiceOption } from './types';
 
+export interface AudioPlaylistItem {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export function CategoryPicker({ categories, value, onChange, label = 'Kategorie (optional)' }: {
   categories: Category[]; value: string | null; onChange: (id: string | null) => void; label?: string;
 }) {
@@ -88,6 +94,93 @@ export function AudioPlayer({ url }: { url: string }) {
   return <Text variant="bodyMedium">Audiowiedergabe ist in dieser MVP-Version für das Web optimiert.</Text>;
 }
 
+export function AudioPlaylist({ items }: { items: AudioPlaylistItem[] }) {
+  const theme = useTheme();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [continuePlayback, setContinuePlayback] = useState(false);
+  const playlistKey = items.map((item) => `${item.id}:${item.url}`).join('|');
+  const current = items[currentIndex];
+
+  useEffect(() => {
+    setCurrentIndex(0);
+    setPlaying(false);
+    setContinuePlayback(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, [playlistKey]);
+
+  useEffect(() => {
+    if (!continuePlayback || !audioRef.current) return;
+    setContinuePlayback(false);
+    audioRef.current.currentTime = 0;
+    void audioRef.current.play().catch(() => setPlaying(false));
+  }, [continuePlayback, currentIndex]);
+
+  if (Platform.OS !== 'web') {
+    return <Text variant="bodyMedium">Die Wiedergabeliste ist in dieser MVP-Version für das Web optimiert.</Text>;
+  }
+  if (!current) return null;
+
+  const AudioElement = 'audio' as unknown as React.ElementType;
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play().catch(() => setPlaying(false));
+    else audio.pause();
+  };
+  const stopPlayback = () => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setPlaying(false);
+    setContinuePlayback(false);
+    setCurrentIndex(0);
+  };
+  const playNext = () => {
+    if (currentIndex >= items.length - 1) {
+      setPlaying(false);
+      setCurrentIndex(0);
+      return;
+    }
+    setContinuePlayback(true);
+    setCurrentIndex((index) => index + 1);
+  };
+
+  return (
+    <View style={[styles.playlist, { backgroundColor: theme.colors.secondaryContainer }]}>
+      <AudioElement
+        ref={audioRef}
+        preload="metadata"
+        src={absoluteAudioUrl(current.url)}
+        style={{ display: 'none' }}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={playNext}
+      />
+      <View style={styles.playlistStatus}>
+        <Text variant="titleMedium" style={{ color: theme.colors.onSecondaryContainer }}>
+          {currentIndex + 1} / {items.length}
+        </Text>
+        <Text variant="bodyMedium" numberOfLines={2} style={{ color: theme.colors.onSecondaryContainer }}>
+          {current.label}
+        </Text>
+      </View>
+      <View style={styles.playlistActions}>
+        <Button mode="contained" icon={playing ? 'pause' : 'play'} onPress={togglePlayback}>
+          {playing ? 'Pause' : currentIndex > 0 ? 'Weiter' : 'Alle abspielen'}
+        </Button>
+        {(playing || currentIndex > 0) ? <IconButton icon="stop" onPress={stopPlayback} accessibilityLabel="Wiedergabeliste stoppen" /> : null}
+      </View>
+    </View>
+  );
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return '0:00';
   const minutes = Math.floor(seconds / 60);
@@ -153,6 +246,9 @@ const styles = StyleSheet.create({
   languageBlock: { gap: 5, padding: 16, borderRadius: 14 },
   audioPlayer: { minHeight: 64, borderRadius: 18, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   audioProgress: { flex: 1, minWidth: 100, gap: 1 },
+  playlist: { borderRadius: 18, padding: 16, gap: 14 },
+  playlistStatus: { gap: 3 },
+  playlistActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   audioError: { padding: 12, borderRadius: 12, gap: 4 },
   cardActions: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
