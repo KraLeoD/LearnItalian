@@ -8,10 +8,12 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
+  const headers = new Headers(init?.headers);
+  if (init?.body != null && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers,
     });
   } catch {
     throw new ApiError('NETWORK_ERROR', 'Der Server ist gerade nicht erreichbar.', 0);

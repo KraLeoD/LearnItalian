@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve, sep } from 'node:path';
 import type { AppConfig } from './config.js';
 import { AppDatabase } from './db.js';
@@ -124,11 +124,13 @@ export class LearningService {
   }
 
   deleteEntry(entryId: string): boolean {
-    const entry = this.db.getEntry(entryId);
-    if (!entry) return false;
-    const deleted = this.db.deleteEntry(entryId);
-    if (deleted && entry.batchId) this.db.updateBatchAudio(entry.batchId, 'failed', null, new Date().toISOString());
-    return deleted;
+    return this.db.deleteEntry(entryId, (filename) => {
+      try {
+        unlinkSync(safeAudioPath(this.audioDirectory, filename));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    });
   }
 
   private async ensureAudio(text: string, voice: string): Promise<string> {
