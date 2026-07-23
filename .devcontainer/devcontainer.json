@@ -35,6 +35,9 @@
   // toolchain, and install app dependencies. See .devcontainer/post-create.sh.
   "postCreateCommand": "bash .devcontainer/post-create.sh",
 
+  // Start Codex remote control whenever the Codespace starts or resumes.
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
   "customizations": {
     "vscode": {
       "extensions": [

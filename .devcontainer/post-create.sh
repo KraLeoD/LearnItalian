@@ -44,4 +44,7 @@ cat <<'EOF'
     in the persistent ~/.codex volume, so you won't need to repeat it after
     a rebuild.
 
+    After signing in, restart the Codespace. The startup log will contain a
+    fresh remote-control pairing code.
+
 EOF
