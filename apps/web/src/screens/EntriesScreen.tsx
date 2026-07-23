@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 import { api, ApiError } from '../api';
-import { AudioPlayer, CategoryPicker, EntryCard } from '../components';
+import { AudioPlayer, AudioPlaylist, CategoryPicker, EntryCard, type AudioPlaylistItem } from '../components';
 import type { Category, Entry } from '../types';
 
 export function EntriesScreen({ categories, revision, onChanged, goNew }: { categories: Category[]; revision: number; onChanged: () => void; goNew: () => void }) {
@@ -13,6 +13,17 @@ export function EntriesScreen({ categories, revision, onChanged, goNew }: { cate
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const selectedCategory = categories.find((category) => category.id === categoryId);
+  const playlist = entries.reduce<AudioPlaylistItem[]>((items, entry) => {
+    const id = entry.batchId ?? entry.id;
+    if (entry.audioStatus !== 'ready' || !entry.audioUrl || items.some((item) => item.id === id)) return items;
+    items.push({
+      id,
+      label: entry.batchId ? `Gemeinsame Aussprache ab „${entry.translatedText}“` : entry.translatedText,
+      url: entry.audioUrl,
+    });
+    return items;
+  }, []);
   const groups = entries.reduce<Entry[][]>((all, entry) => {
     if (!entry.batchId) { all.push([entry]); return all; }
     const existing = all.find((group) => group[0]?.batchId === entry.batchId);
@@ -64,6 +75,19 @@ export function EntriesScreen({ categories, revision, onChanged, goNew }: { cate
         <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} label="Alle Kategorien" />
       </View>
       {loading ? <View style={styles.center} accessibilityLiveRegion="polite"><ActivityIndicator size="large" /><Text>Sätze werden geladen …</Text></View> : null}
+      {!loading && selectedCategory && entries.length ? (
+        <Card mode="outlined">
+          <Card.Content style={styles.categoryPlaylist}>
+            <View style={styles.categoryPlaylistHeading}>
+              <Text variant="titleLarge">Kategorie „{selectedCategory.name}“ anhören</Text>
+              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                {playlist.length ? `${playlist.length} verfügbare ${playlist.length === 1 ? 'Audiospur' : 'Audiospuren'} werden nacheinander abgespielt.` : 'Für die angezeigten Sätze ist noch kein Audio verfügbar.'}
+              </Text>
+            </View>
+            {playlist.length ? <AudioPlaylist items={playlist} /> : null}
+          </Card.Content>
+        </Card>
+      ) : null}
       {!loading && entries.length === 0 ? (
         <View style={[styles.empty, { backgroundColor: theme.colors.surfaceVariant }]}>
           <Text variant="displaySmall">💬</Text><Text variant="headlineSmall">Noch nichts gefunden</Text>
@@ -93,5 +117,7 @@ const styles = StyleSheet.create({
   list: { gap: 18 }, center: { padding: 48, alignItems: 'center', gap: 16 },
   batchGroup: { gap: 14 },
   batchAudio: { gap: 12 },
+  categoryPlaylist: { gap: 14 },
+  categoryPlaylistHeading: { gap: 4 },
   empty: { padding: 36, borderRadius: 24, alignItems: 'center', gap: 14 },
 });

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 }, content: { padding: 36, minHeight: '100%' }, contentMobile: { paddingHorizontal: 16, paddingVertical: 24 },
   rail: { width: 232, borderRightWidth: StyleSheet.hairlineWidth, padding: 16 }, railBrand: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginBottom: 24 },
   brandMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, railItems: { gap: 8 },
-  bottomBar: { minHeight: 72, flexDirection: "row", alignItems: "stretch" },
+  bottomBar: { minHeight: 64, flexDirection: "row", alignItems: "stretch" },
   bottomItem: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4 },
   railItem: { minHeight: 56, borderRadius: 28, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
 });
