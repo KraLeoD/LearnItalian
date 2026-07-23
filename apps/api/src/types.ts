@@ -20,8 +20,16 @@ export interface Entry {
   translationProvider: string;
   speechProvider: string;
   speechVoice: string;
+  batchId: string | null;
+  batchIndex: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VoiceOption {
+  id: string;
+  name: string;
+  gender: 'female' | 'male';
 }
 
 export interface TranslationProvider {

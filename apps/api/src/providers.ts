@@ -8,7 +8,8 @@ export function escapeSsml(value: string): string {
 }
 
 export function createSpeechSsml(request: SpeechRequest): string {
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${request.language}"><voice name="${escapeSsml(request.voice)}"><prosody rate="${escapeSsml(request.rate)}" pitch="${escapeSsml(request.pitch)}">${escapeSsml(request.text)}</prosody></voice></speak>`;
+  const text = request.text.split(/\n\s*\n/).map(escapeSsml).join('<break time="650ms"/>');
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${request.language}"><voice name="${escapeSsml(request.voice)}"><prosody rate="${escapeSsml(request.rate)}" pitch="${escapeSsml(request.pitch)}">${text}</prosody></voice></speak>`;
 }
 
 async function fetchWithRetry(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {

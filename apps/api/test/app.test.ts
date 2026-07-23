@@ -59,6 +59,20 @@ describe('configuration and validation', () => {
     expect((await app.inject({ method: 'POST', url: '/api/entries', payload: { sourceText: 'Hallo', targetLanguage: 'fr', categoryId: null } })).statusCode).toBe(400);
     await app.close();
   });
+
+  it('exposes only non-HD Italian voices and rejects unknown voice selections', async () => {
+    const config = testConfig();
+    const app = await buildApp({ config });
+    const info = await app.inject({ method: 'GET', url: '/api/info' });
+    expect(info.headers['cache-control']).toBe('no-store');
+    expect(info.json().voices).toContainEqual({ id: 'it-IT-DiegoNeural', name: 'Diego', gender: 'male' });
+    expect(info.json().voices.every((voice: { id: string }) => !voice.id.includes('HD'))).toBe(true);
+    const invalid = await app.inject({ method: 'POST', url: '/api/entries', payload: {
+      sourceText: 'Hallo', targetLanguage: 'it', categoryId: null, voice: 'it-IT-Isabella:DragonHDLatestNeural',
+    } });
+    expect(invalid.statusCode).toBe(400);
+    await app.close();
+  });
 });
 
 describe('provider requests', () => {
@@ -69,6 +83,8 @@ describe('provider requests', () => {
     expect(ssml).toContain('voice name="it-IT-ElsaNeural"');
     expect(ssml).toContain('Pane &amp; &lt;vino&gt;');
     expect(ssml).not.toContain('Pane & <vino>');
+    const batchSsml = createSpeechSsml({ text: 'Prima.\n\nSeconda.', language: 'it-IT', voice: 'it-IT-ElsaNeural', rate: '0%', pitch: '0%' });
+    expect(batchSsml).toContain('Prima.<break time="650ms"/>Seconda.');
   });
 
   it('validates the Azure Translator response shape', async () => {
@@ -113,6 +129,29 @@ describe('persistence, cache, and safeguards', () => {
     const entry = await service.generate('Am Bahnhof', category.id);
     expect(db.deleteCategory(category.id)).toBe(true);
     expect(db.getEntry(entry.id)).toMatchObject({ categoryId: null, sourceText: 'Am Bahnhof' });
+    db.close();
+  });
+
+  it('stores batch sentences separately while generating and retrying one combined voice-specific track', async () => {
+    const config = testConfig();
+    const db = new AppDatabase(':memory:');
+    const speech = new Speech();
+    const translator: TranslationProvider = { name: 'echo-translator', translate: async (text) => `IT ${text}` };
+    const service = new LearningService(db, config, translator, speech);
+    const entries = await service.generateBatch(['Erster Satz.', 'Zweiter Satz.'], null, 'it-IT-DiegoNeural');
+
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.sourceText)).toEqual(['Erster Satz.', 'Zweiter Satz.']);
+    expect(entries[0]?.batchId).toBe(entries[1]?.batchId);
+    expect(entries[0]?.audioUrl).toBe(entries[1]?.audioUrl);
+    expect(speech.lastRequest).toMatchObject({ text: 'IT Erster Satz.\n\nIT Zweiter Satz.', voice: 'it-IT-DiegoNeural' });
+
+    expect(service.deleteEntry(entries[0]!.id)).toBe(true);
+    const remaining = db.getEntry(entries[1]!.id)!;
+    expect(remaining).toMatchObject({ audioStatus: 'failed', audioUrl: null });
+    await service.retryAudio(remaining.id);
+    expect(speech.calls).toBe(2);
+    expect(speech.lastRequest).toMatchObject({ text: 'IT Zweiter Satz.', voice: 'it-IT-DiegoNeural' });
     db.close();
   });
 

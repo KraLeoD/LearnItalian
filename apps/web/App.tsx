@@ -9,7 +9,7 @@ import { EntriesScreen } from './src/screens/EntriesScreen';
 import { InfoScreen } from './src/screens/InfoScreen';
 import { NewScreen } from './src/screens/NewScreen';
 import { darkTheme, lightTheme } from './src/theme';
-import type { Category } from './src/types';
+import type { Category, VoiceOption } from './src/types';
 
 type Route = 'new' | 'entries' | 'categories' | 'info';
 const routes: Array<{ key: Route; label: string; icon: string; activeIcon: string }> = [
@@ -23,6 +23,11 @@ function getStoredTheme(): boolean | null {
   if (Platform.OS !== 'web') return null;
   const value = globalThis.localStorage?.getItem('theme');
   return value === 'dark' ? true : value === 'light' ? false : null;
+}
+
+function getStoredVoice(): string {
+  if (Platform.OS !== 'web') return 'it-IT-ElsaNeural';
+  return globalThis.localStorage?.getItem('speechVoice') ?? 'it-IT-ElsaNeural';
 }
 
 export default function App() {
@@ -48,6 +53,8 @@ function Application({ dark, onToggleDark }: { dark: boolean; onToggleDark: () =
   const desktop = width >= 900;
   const [route, setRoute] = useState<Route>('new');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [voice, setVoice] = useState(getStoredVoice);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
   const loadCategories = useCallback(async () => {
@@ -55,6 +62,16 @@ function Application({ dark, onToggleDark }: { dark: boolean; onToggleDark: () =
     catch (cause) { setError(cause instanceof ApiError ? cause.message : 'Kategorien konnten nicht geladen werden.'); }
   }, []);
   useEffect(() => { void loadCategories(); }, [loadCategories]);
+  useEffect(() => {
+    api.info().then((info) => {
+      setVoices(info.voices);
+      setVoice((current) => info.voices.some((item) => item.id === current) ? current : info.defaultVoice);
+    }).catch(() => undefined);
+  }, []);
+  const changeVoice = (next: string) => {
+    setVoice(next);
+    if (Platform.OS === 'web') globalThis.localStorage?.setItem('speechVoice', next);
+  };
   const changed = () => setRevision((value) => value + 1);
   const selectedIndex = routes.findIndex((item) => item.key === route);
 
@@ -65,10 +82,10 @@ function Application({ dark, onToggleDark }: { dark: boolean; onToggleDark: () =
         <View style={styles.main}>
           <View style={[styles.topBar, { borderBottomColor: theme.colors.outlineVariant }]}>
             <View style={[styles.logo, { backgroundColor: theme.colors.primaryContainer }]}><Text variant="titleLarge" style={{ color: theme.colors.onPrimaryContainer }}>Parla</Text></View>
-            <View><Text variant="titleLarge">Meine Sätze</Text><Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>Italienisch für deinen Alltag</Text></View>
+            <Text variant="titleLarge" style={{ color: theme.colors.onSurfaceVariant }}>italienisch für deinen Alltag</Text>
           </View>
           <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, !desktop && styles.contentMobile]} keyboardShouldPersistTaps="handled">
-            {route === 'new' ? <NewScreen categories={categories} onChanged={changed} /> : null}
+            {route === 'new' ? <NewScreen categories={categories} voices={voices} voice={voice} onVoiceChange={changeVoice} onChanged={changed} /> : null}
             {route === 'entries' ? <EntriesScreen categories={categories} revision={revision} onChanged={changed} goNew={() => setRoute('new')} /> : null}
             {route === 'categories' ? <CategoriesScreen categories={categories} reload={loadCategories} /> : null}
             {route === 'info' ? <InfoScreen dark={dark} onToggleDark={onToggleDark} /> : null}

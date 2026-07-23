@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Card, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 import { api, ApiError } from '../api';
-import { CategoryPicker, EntryCard } from '../components';
+import { AudioPlayer, CategoryPicker, EntryCard } from '../components';
 import type { Category, Entry } from '../types';
 
 export function EntriesScreen({ categories, revision, onChanged, goNew }: { categories: Category[]; revision: number; onChanged: () => void; goNew: () => void }) {
@@ -13,6 +13,13 @@ export function EntriesScreen({ categories, revision, onChanged, goNew }: { cate
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const groups = entries.reduce<Entry[][]>((all, entry) => {
+    if (!entry.batchId) { all.push([entry]); return all; }
+    const existing = all.find((group) => group[0]?.batchId === entry.batchId);
+    if (existing) existing.push(entry);
+    else all.push([entry]);
+    return all;
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -24,13 +31,21 @@ export function EntriesScreen({ categories, revision, onChanged, goNew }: { cate
 
   async function retryAudio(entry: Entry) {
     setBusyId(entry.id);
-    try { const result = await api.retryAudio(entry.id); setEntries((all) => all.map((item) => item.id === entry.id ? result.entry : item)); setMessage('Audio wurde erstellt.'); }
+    try {
+      const result = await api.retryAudio(entry.id);
+      setEntries((all) => all.map((item) => item.id === entry.id || (entry.batchId && item.batchId === entry.batchId) ? { ...item, audioStatus: result.entry.audioStatus, audioUrl: result.entry.audioUrl, updatedAt: result.entry.updatedAt } : item));
+      setMessage('Audio wurde erstellt.');
+    }
     catch (error) { setMessage(error instanceof ApiError ? error.message : 'Audio konnte nicht erstellt werden.'); }
     finally { setBusyId(null); }
   }
   async function remove(entry: Entry) {
     setBusyId(entry.id);
-    try { await api.deleteEntry(entry.id); setEntries((all) => all.filter((item) => item.id !== entry.id)); setMessage('Eintrag gelöscht.'); onChanged(); }
+    try {
+      await api.deleteEntry(entry.id);
+      setEntries((all) => all.filter((item) => item.id !== entry.id).map((item) => entry.batchId && item.batchId === entry.batchId ? { ...item, audioStatus: 'failed', audioUrl: null } : item));
+      setMessage('Eintrag gelöscht. Gemeinsames Audio kann bei Bedarf neu erstellt werden.'); onChanged();
+    }
     catch (error) { setMessage(error instanceof ApiError ? error.message : 'Eintrag konnte nicht gelöscht werden.'); }
     finally { setBusyId(null); }
   }
@@ -56,7 +71,17 @@ export function EntriesScreen({ categories, revision, onChanged, goNew }: { cate
           {!search && !categoryId ? <Button mode="contained" icon="plus" onPress={goNew}>Ersten Satz erstellen</Button> : null}
         </View>
       ) : null}
-      <View style={styles.list}>{entries.map((entry) => <EntryCard key={entry.id} entry={entry} categories={categories} busy={busyId === entry.id} onRetryAudio={retryAudio} onDelete={remove} onAssign={assign} />)}</View>
+      <View style={styles.list}>{groups.map((group) => {
+        const first = group[0]!;
+        if (!first.batchId) return <EntryCard key={first.id} entry={first} categories={categories} busy={busyId === first.id} onRetryAudio={retryAudio} onDelete={remove} onAssign={assign} />;
+        return <View key={first.batchId} style={styles.batchGroup}>
+          <Card mode="outlined"><Card.Content style={styles.batchAudio}>
+            <Text variant="titleMedium">Gemeinsame Aussprache · {group.length} Sätze</Text>
+            {first.audioStatus === 'ready' && first.audioUrl ? <AudioPlayer url={first.audioUrl} /> : <Button mode="contained-tonal" icon="refresh" loading={group.some((item) => item.id === busyId)} disabled={Boolean(busyId)} onPress={() => retryAudio(first)}>Gemeinsames Audio neu erstellen</Button>}
+          </Card.Content></Card>
+          {group.map((entry) => <EntryCard key={entry.id} entry={entry} categories={categories} busy={busyId === entry.id} hideAudio onRetryAudio={retryAudio} onDelete={remove} onAssign={assign} />)}
+        </View>;
+      })}</View>
       <Snackbar visible={Boolean(message)} onDismiss={() => setMessage('')} duration={5000}>{message}</Snackbar>
     </View>
   );
@@ -66,5 +91,7 @@ const styles = StyleSheet.create({
   page: { width: '100%', maxWidth: 900, alignSelf: 'center', gap: 24, paddingBottom: 40 }, heading: { gap: 8 },
   filters: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', alignItems: 'center' }, search: { flexGrow: 1, minWidth: 240 },
   list: { gap: 18 }, center: { padding: 48, alignItems: 'center', gap: 16 },
+  batchGroup: { gap: 14 },
+  batchAudio: { gap: 12 },
   empty: { padding: 36, borderRadius: 24, alignItems: 'center', gap: 14 },
 });

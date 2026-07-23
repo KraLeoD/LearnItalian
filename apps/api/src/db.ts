@@ -34,7 +34,8 @@ export class AppDatabase {
         audio_status TEXT NOT NULL CHECK(audio_status IN ('ready','failed','pending')),
         audio_cache_key TEXT REFERENCES audio_cache(cache_key) ON DELETE SET NULL,
         translation_provider TEXT NOT NULL, speech_provider TEXT NOT NULL,
-        speech_voice TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        speech_voice TEXT NOT NULL, batch_id TEXT, batch_index INTEGER,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS entries_created_idx ON entries(created_at DESC);
       CREATE INDEX IF NOT EXISTS entries_category_idx ON entries(category_id);
@@ -43,6 +44,10 @@ export class AppDatabase {
         PRIMARY KEY(provider_kind, month)
       );
     `);
+    const columns = this.db.prepare('PRAGMA table_info(entries)').all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'batch_id')) this.db.exec('ALTER TABLE entries ADD COLUMN batch_id TEXT');
+    if (!columns.some((column) => column.name === 'batch_index')) this.db.exec('ALTER TABLE entries ADD COLUMN batch_index INTEGER');
+    this.db.exec('CREATE INDEX IF NOT EXISTS entries_batch_idx ON entries(batch_id, batch_index)');
   }
 
   close() { this.db.close(); }
@@ -71,8 +76,8 @@ export class AppDatabase {
 
   insertEntry(input: Omit<Entry, 'categoryName' | 'audioUrl'> & { audioCacheKey: string | null }) {
     this.db.prepare(`INSERT INTO entries
-      (id,source_text,translated_text,source_language,target_language,category_id,audio_status,audio_cache_key,translation_provider,speech_provider,speech_voice,created_at,updated_at)
-      VALUES (@id,@sourceText,@translatedText,@sourceLanguage,@targetLanguage,@categoryId,@audioStatus,@audioCacheKey,@translationProvider,@speechProvider,@speechVoice,@createdAt,@updatedAt)`)
+      (id,source_text,translated_text,source_language,target_language,category_id,audio_status,audio_cache_key,translation_provider,speech_provider,speech_voice,batch_id,batch_index,created_at,updated_at)
+      VALUES (@id,@sourceText,@translatedText,@sourceLanguage,@targetLanguage,@categoryId,@audioStatus,@audioCacheKey,@translationProvider,@speechProvider,@speechVoice,@batchId,@batchIndex,@createdAt,@updatedAt)`)
       .run(input);
   }
 
@@ -80,11 +85,19 @@ export class AppDatabase {
     this.db.prepare('UPDATE entries SET audio_status=?, audio_cache_key=?, updated_at=? WHERE id=?').run(status, cacheKey, now, id);
   }
 
+  updateBatchAudio(batchId: string, status: 'ready' | 'failed' | 'pending', cacheKey: string | null, now: string) {
+    this.db.prepare('UPDATE entries SET audio_status=?, audio_cache_key=?, updated_at=? WHERE batch_id=?').run(status, cacheKey, now, batchId);
+  }
+
   updateEntryCategory(id: string, categoryId: string | null, now: string): boolean {
     return this.db.prepare('UPDATE entries SET category_id=?, updated_at=? WHERE id=?').run(categoryId, now, id).changes > 0;
   }
 
   deleteEntry(id: string): boolean { return this.db.prepare('DELETE FROM entries WHERE id=?').run(id).changes > 0; }
+
+  listEntriesByBatch(batchId: string): Entry[] {
+    return (this.db.prepare(`${entrySelect} WHERE e.batch_id=? ORDER BY e.batch_index ASC`).all(batchId) as Row[]).map((row) => this.mapEntry(row)!);
+  }
 
   private mapEntry(row: Row | undefined): Entry | null {
     if (!row) return null;
@@ -94,7 +107,8 @@ export class AppDatabase {
       categoryId: row.categoryId, categoryName: row.categoryName,
       audioStatus: row.audioStatus, audioUrl: row.audioCacheKey ? `/api/audio/${row.audioCacheKey}` : null,
       translationProvider: row.translationProvider, speechProvider: row.speechProvider,
-      speechVoice: row.speechVoice, createdAt: row.createdAt, updatedAt: row.updatedAt,
+      speechVoice: row.speechVoice, batchId: row.batchId ?? null, batchIndex: row.batchIndex ?? null,
+      createdAt: row.createdAt, updatedAt: row.updatedAt,
     };
   }
 
@@ -107,7 +121,7 @@ export class AppDatabase {
     const values: string[] = [];
     if (search) { where.push('(e.source_text LIKE ? ESCAPE \'\\\' OR e.translated_text LIKE ? ESCAPE \'\\\')'); const q = `%${search.replace(/[\\%_]/g, '\\$&')}%`; values.push(q, q); }
     if (categoryId) { where.push('e.category_id=?'); values.push(categoryId); }
-    const sql = `${entrySelect}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY e.created_at DESC LIMIT 500`;
+    const sql = `${entrySelect}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY e.created_at DESC, e.batch_index ASC LIMIT 500`;
     return (this.db.prepare(sql).all(...values) as Row[]).map((row) => this.mapEntry(row)!);
   }
 
@@ -140,5 +154,6 @@ const entrySelect = `SELECT e.id, e.source_text sourceText, e.translated_text tr
   e.source_language sourceLanguage, e.target_language targetLanguage, e.category_id categoryId,
   c.name categoryName, e.audio_status audioStatus, e.audio_cache_key audioCacheKey,
   e.translation_provider translationProvider, e.speech_provider speechProvider,
-  e.speech_voice speechVoice, e.created_at createdAt, e.updated_at updatedAt
+  e.speech_voice speechVoice, e.batch_id batchId, e.batch_index batchIndex,
+  e.created_at createdAt, e.updated_at updatedAt
   FROM entries e LEFT JOIN categories c ON c.id=e.category_id`;
